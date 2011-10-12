@@ -1,0 +1,9 @@
+include run_tests.sh ChangeLog
+include README builddeb.sh
+include MANIFEST.in pylintrc
+include run_tests.py
+include glance/registry/db/migrate_repo/migrate.cfg
+include glance/registry/db/migrate_repo/versions/*.sql
+graft doc
+graft etc
+graft tools
