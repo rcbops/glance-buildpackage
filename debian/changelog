@@ -1,3 +1,9 @@
+glance (2011.3-d5-rcb4.1) natty; urgency=low
+
+  * Add XCBS-RCB-Component in preparation for essex-e0 drop
+
+ -- RCB Builder <rcb-deploy@lists.rackspace.com>  Thu, 27 Oct 2011 17:51:10 -0500
+
 glance (2011.3-d5-rcb4) natty; urgency=low
 
   * bump for natty builds

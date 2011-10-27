@@ -1,7 +1,8 @@
 Source: glance
 Section: net
 Priority: extra
-Maintainer: Soren Hansen <soren@ubuntu.com>
+Maintainer: RCB Builder <rcb-deploy@lists.rackspace.com>
+XCBS-Original-Maintainer: Soren Hansen <soren@ubuntu.com>
 Build-Depends: debhelper (>= 7.0.50),
  python-all
 Build-Depends-Indep:
@@ -31,6 +32,7 @@ Vcs-Browser: http://bazaar.launchpad.net/~openstack-ubuntu-packagers/glance/ubun
 Vcs-Bzr: http://bazaar.launchpad.net/~openstack-ubuntu-packagers/glance/ubuntu/
 XS-Debian-Vcs-Browser: http://bazaar.launchpad.net/~glance-core/debian/sid/glance/debian/files
 XS-Debian-Vcs-Bzr: http://bazaar.launchpad.net/~glance-core/debian/sid/glance/debian
+XCBS-RCB-Component: diablo-d5
 
 Package: python-glance
 Architecture: all
