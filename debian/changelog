@@ -1,4 +1,4 @@
-glance (2011.3-d5-rcb4.1) natty; urgency=low
+glance (2011.3-d5-rcb5) natty; urgency=low
 
   * Add XCBS-RCB-Component in preparation for essex-e0 drop
 
