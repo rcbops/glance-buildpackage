@@ -1036,7 +1036,6 @@ class TestClient(unittest.TestCase):
                    'container_format': 'ovf',
                    'status': 'active',
                    'size': 19,
-                   'location': "file:///tmp/glance-tests/2",
                    'properties': {}}
         meta, image_chunks = self.client.get_image(2)
 
@@ -1233,16 +1232,6 @@ class TestClient(unittest.TestCase):
 
     def test_get_image_details(self):
         """Tests that the detailed info about public images returned"""
-        fixture = {'id': 2,
-                   'name': 'fake image #2',
-                   'is_public': True,
-                   'disk_format': 'vhd',
-                   'container_format': 'ovf',
-                   'status': 'active',
-                   'size': 19,
-                   'location': "file:///tmp/glance-tests/2",
-                   'properties': {}}
-
         expected = {'id': 2,
                    'name': 'fake image #2',
                    'is_public': True,
@@ -1250,7 +1239,6 @@ class TestClient(unittest.TestCase):
                    'container_format': 'ovf',
                    'status': 'active',
                    'size': 19,
-                   'location': "file:///tmp/glance-tests/2",
                    'properties': {}}
 
         images = self.client.get_images_detailed()
@@ -1361,7 +1349,6 @@ class TestClient(unittest.TestCase):
                    'container_format': 'ovf',
                    'status': 'active',
                    'size': 19,
-                   'location': "file:///tmp/glance-tests/2",
                    'properties': {}}
 
         data = self.client.get_image_meta(2)
@@ -1725,3 +1712,33 @@ class TestClient(unittest.TestCase):
         """Tests deleting image members"""
         self.assertRaises(exception.NotAuthorized,
                           self.client.delete_member, 2, 'pattieblack')
+
+
+class TestConfigureClientFromURL(unittest.TestCase):
+    def setUp(self):
+        self.client = client.Client("0.0.0.0", doc_root="")
+
+    def assertConfiguration(self, url, host, port, use_ssl, doc_root):
+        self.client.configure_from_url(url)
+        self.assertEquals(host, self.client.host)
+        self.assertEquals(port, self.client.port)
+        self.assertEquals(use_ssl, self.client.use_ssl)
+        self.assertEquals(doc_root, self.client.doc_root)
+
+    def test_no_port_no_ssl_no_doc_root(self):
+        self.assertConfiguration(
+            url='http://www.example.com',
+            host='www.example.com',
+            port=80,
+            use_ssl=False,
+            doc_root=''
+        )
+
+    def test_port_ssl_doc_root(self):
+        self.assertConfiguration(
+            url='https://www.example.com:8000/prefix/',
+            host='www.example.com',
+            port=8000,
+            use_ssl=True,
+            doc_root='/prefix/'
+        )

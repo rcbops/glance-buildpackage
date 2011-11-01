@@ -55,7 +55,8 @@ from glance import utils
 logger = logging.getLogger('glance.api.v1.images')
 
 SUPPORTED_FILTERS = ['name', 'status', 'container_format', 'disk_format',
-                     'size_min', 'size_max', 'is_public']
+                     'min_ram', 'min_disk', 'size_min', 'size_max',
+                     'is_public']
 
 SUPPORTED_PARAMS = ('limit', 'marker', 'sort_key', 'sort_dir')
 
@@ -130,6 +131,8 @@ class Controller(api.BaseController):
                  'disk_format': <DISK_FORMAT>,
                  'container_format': <CONTAINER_FORMAT>,
                  'checksum': <CHECKSUM>,
+                 'min_disk': <MIN_DISK>,
+                 'min_ram': <MIN_RAM>,
                  'store': <STORE>,
                  'status': <STATUS>,
                  'created_at': <TIMESTAMP>,
@@ -142,6 +145,13 @@ class Controller(api.BaseController):
         try:
             images = registry.get_images_detail(self.options, req.context,
                                                 **params)
+            # Strip out the Location attribute. Temporary fix for
+            # LP Bug #755916. This information is still coming back
+            # from the registry, since the API server still needs access
+            # to it, however we do not return this potential security
+            # information to the API end user...
+            for image in images:
+                del image['location']
         except exception.Invalid, e:
             raise HTTPBadRequest(explanation="%s" % e)
         return dict(images=images)
@@ -200,13 +210,15 @@ class Controller(api.BaseController):
         """
         image = self.get_active_image_meta_or_404(req, id)
 
-        def get_from_store(image):
+        def get_from_store(image_meta):
             """Called if caching disabled"""
             try:
-                image = get_from_backend(image['location'])
+                location = image_meta['location']
+                image_data, image_size = get_from_backend(location)
+                image_meta["size"] = image_size or image_meta["size"]
             except exception.NotFound, e:
                 raise HTTPNotFound(explanation="%s" % e)
-            return image
+            return image_data
 
         def get_from_cache(image, cache):
             """Called if cache hit"""
