@@ -230,8 +230,8 @@ class Store(glance.store.base.Store):
     def get(self, location):
         """
         Takes a `glance.store.location.Location` object that indicates
-        where to find the image file, and returns a generator for reading
-        the image file
+        where to find the image file, and returns a tuple of generator
+        (for reading the image file) and image_size
 
         :param location `glance.store.location.Location` object, supplied
                         from glance.store.location.get_location_from_uri()
@@ -260,7 +260,7 @@ class Store(glance.store.base.Store):
         #            "Expected %s byte file, Swift has %s bytes" %
         #            (expected_size, obj_size))
 
-        return resp_body
+        return (resp_body, None)
 
     def _make_swift_connection(self, auth_url, user, key):
         """
@@ -424,6 +424,28 @@ class Store(glance.store.base.Store):
             auth_url=loc.swift_auth_url, user=loc.user, key=loc.key)
 
         try:
+            # We request the manifest for the object. If one exists,
+            # that means the object was uploaded in chunks/segments,
+            # and we need to delete all the chunks as well as the
+            # manifest.
+            manifest = None
+            try:
+                headers = swift_conn.head_object(loc.container, loc.obj)
+                manifest = headers.get('x-object-manifest')
+            except swift_client.ClientException, e:
+                if e.http_status != httplib.NOT_FOUND:
+                    raise
+            if manifest:
+                # Delete all the chunks before the object manifest itself
+                obj_container, obj_prefix = manifest.split('/', 1)
+                for segment in swift_conn.get_container(obj_container,
+                                                        prefix=obj_prefix)[1]:
+                    # TODO(jaypipes): This would be an easy area to parallelize
+                    # since we're simply sending off parallelizable requests
+                    # to Swift to delete stuff. It's not like we're going to
+                    # be hogging up network or file I/O here...
+                    swift_conn.delete_object(obj_container, segment['name'])
+
             swift_conn.delete_object(loc.container, loc.obj)
         except swift_client.ClientException, e:
             if e.http_status == httplib.NOT_FOUND:

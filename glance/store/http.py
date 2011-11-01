@@ -85,14 +85,19 @@ class StoreLocation(glance.store.location.StoreLocation):
         self.path = path
 
 
-def http_response_iterator(f, size):
+def http_response_iterator(conn, response, size):
     """
-    Return an iterator for a file-like object
+    Return an iterator for a file-like object.
+
+    :param conn: HTTP(S) Connection
+    :param response: httplib.HTTPResponse object
+    :param size: Chunk size to iterate with
     """
-    chunk = f.read(size)
+    chunk = response.read(size)
     while chunk:
         yield chunk
-        chunk = f.read(size)
+        chunk = response.read(size)
+    conn.close()
 
 
 class Store(glance.store.base.Store):
@@ -102,23 +107,23 @@ class Store(glance.store.base.Store):
     def get(self, location):
         """
         Takes a `glance.store.location.Location` object that indicates
-        where to find the image file, and returns a generator for reading
-        the image file
+        where to find the image file, and returns a tuple of generator
+        (for reading the image file) and image_size
 
         :param location `glance.store.location.Location` object, supplied
                         from glance.store.location.get_location_from_uri()
-        :raises `glance.exception.NotFound` if image does not exist
         """
         loc = location.store_location
 
         conn_class = self._get_conn_class(loc)
         conn = conn_class(loc.netloc)
         conn.request("GET", loc.path, "", {})
+        resp = conn.getresponse()
 
-        try:
-            return http_response_iterator(conn.getresponse(), self.CHUNKSIZE)
-        finally:
-            conn.close()
+        content_length = resp.getheader('content-length', 0)
+        iterator = http_response_iterator(conn, resp, self.CHUNKSIZE)
+
+        return (iterator, content_length)
 
     def _get_conn_class(self, loc):
         """
