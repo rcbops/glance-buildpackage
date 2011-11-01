@@ -32,7 +32,7 @@ Vcs-Browser: http://bazaar.launchpad.net/~openstack-ubuntu-packagers/glance/ubun
 Vcs-Bzr: http://bazaar.launchpad.net/~openstack-ubuntu-packagers/glance/ubuntu/
 XS-Debian-Vcs-Browser: http://bazaar.launchpad.net/~glance-core/debian/sid/glance/debian/files
 XS-Debian-Vcs-Bzr: http://bazaar.launchpad.net/~glance-core/debian/sid/glance/debian
-XCBS-RCB-Component: diablo-d5
+XCBS-RCB-Component: diablo-final
 
 Package: python-glance
 Architecture: all

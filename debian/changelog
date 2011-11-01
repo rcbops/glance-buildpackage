@@ -1,3 +1,10 @@
+glance (2011.3-final-rcb1) natty; urgency=low
+
+  * import github.com/cloudbuilders/glance revision
+    84e5d7fa0d38e6831570384db3cb1d6bd35b42b4 (tag rcb_v1.1)
+
+ -- RCB Builder <rcb-deploy@lists.rackspace.com>  Tue, 01 Nov 2011 16:01:17 -0500
+
 glance (2011.3-d5-rcb5) natty; urgency=low
 
   * Add XCBS-RCB-Component in preparation for essex-e0 drop
@@ -29,7 +36,7 @@ glance (2011.3-d5-rcb1) natty; urgency=low
     136310e63884d5b4f042df8bf37f2bdc88c44114 Updated debian packaging
     from lp:~anso/glance, revision 55
 
- -- Chuck Short <build@syn-n04.lab>  Tue, 13 Sep 2011 23:40:38 -0500
+ -- RCB Builder <rcb-deploy@lists.rackspace.com>  Tue, 13 Sep 2011 23:40:38 -0500
 
 glance (2011.3~d4-0ubuntu1) oneiric; urgency=low
 
