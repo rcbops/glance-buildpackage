@@ -1,3 +1,9 @@
+glance (2011.3-final-rcb2) natty; urgency=low
+
+  * add runtime dep on python-httplib2
+
+ -- RCB Builder <rcb-deploy@lists.rackspace.com>  Wed, 02 Nov 2011 16:50:51 -0500
+
 glance (2011.3-final-rcb1) natty; urgency=low
 
   * import github.com/cloudbuilders/glance revision

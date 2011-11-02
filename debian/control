@@ -47,6 +47,7 @@ Depends: ${python:Depends}, ${misc:Depends},
  python-migrate,
  python-kombu,
  python-xattr,
+ python-httplib2,
  python-tempita
 Provides: ${python:Provides}
 XB-Python-Version: ${python:Versions}
