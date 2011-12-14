@@ -1,3 +1,9 @@
+glance (2011.3-final-rcb3) natty; urgency=low
+
+  * update logrotate default settings
+
+ -- RCB Builder <rcb-deploy@lists.rackspace.com>  Wed, 14 Dec 2011 00:46:02 -0600
+
 glance (2011.3-final-rcb2) natty; urgency=low
 
   * add runtime dep on python-httplib2
