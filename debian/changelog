@@ -1,3 +1,9 @@
+glance (2011.3-final-rcb4) natty; urgency=low
+
+  * add support for diablo stable format keystone service catalogs
+
+ -- RCB Builder <rcb-deploy@lists.rackspace.com>  Tue, 20 Dec 2011 10:45:25 -0600
+
 glance (2011.3-final-rcb3) natty; urgency=low
 
   * update logrotate default settings
