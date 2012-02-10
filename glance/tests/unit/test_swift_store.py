@@ -20,20 +20,24 @@
 import StringIO
 import hashlib
 import httplib
-import sys
 import unittest
-import urlparse
 
 import stubout
 import swift.common.client
 
 from glance.common import exception
+from glance.common import utils
 from glance.store import BackendException
 import glance.store.swift
 from glance.store.location import get_location_from_uri
 
+
+FAKE_UUID = utils.generate_uuid
+
 Store = glance.store.swift.Store
 FIVE_KB = (5 * 1024)
+FIVE_GB = (5 * 1024 * 1024 * 1024)
+MAX_SWIFT_OBJECT_SIZE = FIVE_GB
 SWIFT_OPTIONS = {'verbose': True,
                  'debug': True,
                  'swift_store_user': 'user',
@@ -48,10 +52,10 @@ SWIFT_OPTIONS = {'verbose': True,
 def stub_out_swift_common_client(stubs):
 
     fixture_containers = ['glance']
-    fixture_headers = {'glance/2':
+    fixture_headers = {'glance/%s' % FAKE_UUID:
                 {'content-length': FIVE_KB,
                  'etag': 'c2e5db72bd7fd153f53ede5da5a06de3'}}
-    fixture_objects = {'glance/2':
+    fixture_objects = {'glance/%s' % FAKE_UUID:
                        StringIO.StringIO("*" * FIVE_KB)}
 
     def fake_head_container(url, token, container, **kwargs):
@@ -67,12 +71,12 @@ def stub_out_swift_common_client(stubs):
         # PUT returns the ETag header for the newly-added object
         # Large object manifest...
         fixture_key = "%s/%s" % (container, name)
-        if kwargs.get('headers'):
-            etag = kwargs['headers']['ETag']
-            fixture_headers[fixture_key] = {'manifest': True,
-                                            'etag': etag}
-            return etag
         if not fixture_key in fixture_headers.keys():
+            if kwargs.get('headers'):
+                etag = kwargs['headers']['ETag']
+                fixture_headers[fixture_key] = {'manifest': True,
+                                                'etag': etag}
+                return etag
             if hasattr(contents, 'read'):
                 fixture_object = StringIO.StringIO()
                 chunk = contents.read(Store.CHUNKSIZE)
@@ -86,6 +90,11 @@ def stub_out_swift_common_client(stubs):
                 fixture_object = StringIO.StringIO(contents)
                 etag = hashlib.md5(fixture_object.getvalue()).hexdigest()
             read_len = fixture_object.len
+            if read_len > MAX_SWIFT_OBJECT_SIZE:
+                msg = ('Image size:%d exceeds Swift max:%d' %
+                        (read_len, MAX_SWIFT_OBJECT_SIZE))
+                raise swift.common.client.ClientException(
+                        msg, http_status=httplib.REQUEST_ENTITY_TOO_LARGE)
             fixture_objects[fixture_key] = fixture_object
             fixture_headers[fixture_key] = {
                 'content-length': read_len,
@@ -167,21 +176,6 @@ def stub_out_swift_common_client(stubs):
               'http_connection', fake_http_connection)
 
 
-def format_swift_location(user, key, authurl, container, obj):
-    """
-    Helper method that returns a Swift store URI given
-    the component pieces.
-    """
-    scheme = 'swift+https'
-    if authurl.startswith('http://'):
-        scheme = 'swift+http'
-        authurl = authurl[7:]
-    if authurl.startswith('https://'):
-        authurl = authurl[8:]
-    return "%s://%s:%s@%s/%s/%s" % (scheme, user, key, authurl,
-                                    container, obj)
-
-
 class TestStore(unittest.TestCase):
 
     def setUp(self):
@@ -196,9 +190,10 @@ class TestStore(unittest.TestCase):
 
     def test_get(self):
         """Test a "normal" retrieval of an image in chunks"""
-        loc = get_location_from_uri("swift://user:key@auth_address/glance/2")
+        uri = "swift://user:key@auth_address/glance/%s" % FAKE_UUID
+        loc = get_location_from_uri(uri)
         (image_swift, image_size) = self.store.get(loc)
-        self.assertEqual(image_size, None)
+        self.assertEqual(image_size, 5120)
 
         expected_data = "*" * FIVE_KB
         data = ""
@@ -214,9 +209,9 @@ class TestStore(unittest.TestCase):
         http:// in the swift_store_auth_address config value
         """
         loc = get_location_from_uri("swift+http://user:key@auth_address/"
-                                    "glance/2")
+                                    "glance/%s" % FAKE_UUID)
         (image_swift, image_size) = self.store.get(loc)
-        self.assertEqual(image_size, None)
+        self.assertEqual(image_size, 5120)
 
         expected_data = "*" * FIVE_KB
         data = ""
@@ -237,19 +232,16 @@ class TestStore(unittest.TestCase):
 
     def test_add(self):
         """Test that we can add an image via the swift backend"""
-        expected_image_id = 42
         expected_swift_size = FIVE_KB
         expected_swift_contents = "*" * expected_swift_size
         expected_checksum = hashlib.md5(expected_swift_contents).hexdigest()
-        expected_location = format_swift_location(
-            SWIFT_OPTIONS['swift_store_user'],
-            SWIFT_OPTIONS['swift_store_key'],
-            SWIFT_OPTIONS['swift_store_auth_address'],
-            SWIFT_OPTIONS['swift_store_container'],
-            expected_image_id)
+        expected_image_id = utils.generate_uuid()
+        expected_location = 'swift+https://user:key@localhost:8080' + \
+                            '/glance/%s' % expected_image_id
         image_swift = StringIO.StringIO(expected_swift_contents)
 
-        location, size, checksum = self.store.add(42, image_swift,
+        location, size, checksum = self.store.add(expected_image_id,
+                                                  image_swift,
                                                   expected_swift_size)
 
         self.assertEquals(expected_location, location)
@@ -269,35 +261,40 @@ class TestStore(unittest.TestCase):
         Test that we can add an image via the swift backend with
         a variety of different auth_address values
         """
-        variations = ['http://localhost:80',
-                      'http://localhost',
-                      'http://localhost/v1',
-                      'http://localhost/v1/',
-                      'https://localhost',
-                      'https://localhost:8080',
-                      'https://localhost/v1',
-                      'https://localhost/v1/',
-                      'localhost',
-                      'localhost:8080/v1']
-        i = 42
-        for variation in variations:
-            expected_image_id = i
+        variations = {
+            'http://localhost:80': 'swift+http://user:key@localhost:80'
+                                   '/glance/%s',
+            'http://localhost': 'swift+http://user:key@localhost/glance/%s',
+            'http://localhost/v1': 'swift+http://user:key@localhost'
+                                   '/v1/glance/%s',
+            'http://localhost/v1/': 'swift+http://user:key@localhost'
+                                    '/v1/glance/%s',
+            'https://localhost': 'swift+https://user:key@localhost/glance/%s',
+            'https://localhost:8080': 'swift+https://user:key@localhost:8080'
+                                      '/glance/%s',
+            'https://localhost/v1': 'swift+https://user:key@localhost'
+                                    '/v1/glance/%s',
+            'https://localhost/v1/': 'swift+https://user:key@localhost'
+                                     '/v1/glance/%s',
+            'localhost': 'swift+https://user:key@localhost/glance/%s',
+            'localhost:8080/v1': 'swift+https://user:key@localhost:8080'
+                                 '/v1/glance/%s',
+        }
+
+        for variation, expected_location in variations.items():
+            image_id = utils.generate_uuid()
+            expected_location = expected_location % image_id
             expected_swift_size = FIVE_KB
             expected_swift_contents = "*" * expected_swift_size
             expected_checksum = \
                     hashlib.md5(expected_swift_contents).hexdigest()
             new_options = SWIFT_OPTIONS.copy()
             new_options['swift_store_auth_address'] = variation
-            expected_location = format_swift_location(
-                new_options['swift_store_user'],
-                new_options['swift_store_key'],
-                new_options['swift_store_auth_address'],
-                new_options['swift_store_container'],
-                expected_image_id)
+
             image_swift = StringIO.StringIO(expected_swift_contents)
 
             self.store = Store(new_options)
-            location, size, checksum = self.store.add(i, image_swift,
+            location, size, checksum = self.store.add(image_id, image_swift,
                                                       expected_swift_size)
 
             self.assertEquals(expected_location, location)
@@ -311,7 +308,6 @@ class TestStore(unittest.TestCase):
 
             self.assertEquals(expected_swift_contents, new_image_contents)
             self.assertEquals(expected_swift_size, new_image_swift_size)
-            i = i + 1
 
     def test_add_no_container_no_create(self):
         """
@@ -329,7 +325,7 @@ class TestStore(unittest.TestCase):
         # simply used self.assertRaises here
         exception_caught = False
         try:
-            self.store.add(3, image_swift, 0)
+            self.store.add(utils.generate_uuid(), image_swift, 0)
         except BackendException, e:
             exception_caught = True
             self.assertTrue("container noexist does not exist "
@@ -344,20 +340,17 @@ class TestStore(unittest.TestCase):
         options = SWIFT_OPTIONS.copy()
         options['swift_store_create_container_on_put'] = 'True'
         options['swift_store_container'] = 'noexist'
-        expected_image_id = 42
         expected_swift_size = FIVE_KB
         expected_swift_contents = "*" * expected_swift_size
         expected_checksum = hashlib.md5(expected_swift_contents).hexdigest()
-        expected_location = format_swift_location(
-            options['swift_store_user'],
-            options['swift_store_key'],
-            options['swift_store_auth_address'],
-            options['swift_store_container'],
-            expected_image_id)
+        expected_image_id = utils.generate_uuid()
+        expected_location = 'swift+https://user:key@localhost:8080' + \
+                            '/noexist/%s' % expected_image_id
         image_swift = StringIO.StringIO(expected_swift_contents)
 
         self.store = Store(options)
-        location, size, checksum = self.store.add(42, image_swift,
+        location, size, checksum = self.store.add(expected_image_id,
+                                                  image_swift,
                                                   expected_swift_size)
 
         self.assertEquals(expected_location, location)
@@ -381,16 +374,12 @@ class TestStore(unittest.TestCase):
         """
         options = SWIFT_OPTIONS.copy()
         options['swift_store_container'] = 'glance'
-        expected_image_id = 42
         expected_swift_size = FIVE_KB
         expected_swift_contents = "*" * expected_swift_size
         expected_checksum = hashlib.md5(expected_swift_contents).hexdigest()
-        expected_location = format_swift_location(
-            options['swift_store_user'],
-            options['swift_store_key'],
-            options['swift_store_auth_address'],
-            options['swift_store_container'],
-            expected_image_id)
+        expected_image_id = utils.generate_uuid()
+        expected_location = 'swift+https://user:key@localhost:8080' + \
+                            '/glance/%s' % expected_image_id
         image_swift = StringIO.StringIO(expected_swift_contents)
 
         orig_max_size = glance.store.swift.DEFAULT_LARGE_OBJECT_SIZE
@@ -399,11 +388,65 @@ class TestStore(unittest.TestCase):
             glance.store.swift.DEFAULT_LARGE_OBJECT_SIZE = 1024
             glance.store.swift.DEFAULT_LARGE_OBJECT_CHUNK_SIZE = 1024
             self.store = Store(options)
-            location, size, checksum = self.store.add(42, image_swift,
+            location, size, checksum = self.store.add(expected_image_id,
+                                                      image_swift,
                                                       expected_swift_size)
         finally:
             swift.DEFAULT_LARGE_OBJECT_CHUNK_SIZE = orig_temp_size
             swift.DEFAULT_LARGE_OBJECT_SIZE = orig_max_size
+
+        self.assertEquals(expected_location, location)
+        self.assertEquals(expected_swift_size, size)
+        self.assertEquals(expected_checksum, checksum)
+
+        loc = get_location_from_uri(expected_location)
+        (new_image_swift, new_image_size) = self.store.get(loc)
+        new_image_contents = new_image_swift.getvalue()
+        new_image_swift_size = new_image_swift.len
+
+        self.assertEquals(expected_swift_contents, new_image_contents)
+        self.assertEquals(expected_swift_size, new_image_swift_size)
+
+    def test_add_large_object_zero_size(self):
+        """
+        Tests that adding an image to Swift which has both an unknown size and
+        exceeds Swift's maximum limit of 5GB is correctly uploaded.
+
+        We avoid the overhead of creating a 5GB object for this test by
+        temporarily setting MAX_SWIFT_OBJECT_SIZE to 1KB, and then adding
+        an object of 5KB.
+
+        Bug lp:891738
+        """
+        options = SWIFT_OPTIONS.copy()
+        options['swift_store_container'] = 'glance'
+
+        # Set up a 'large' image of 5KB
+        expected_swift_size = FIVE_KB
+        expected_swift_contents = "*" * expected_swift_size
+        expected_checksum = hashlib.md5(expected_swift_contents).hexdigest()
+        expected_image_id = utils.generate_uuid()
+        expected_location = 'swift+https://user:key@localhost:8080' + \
+                            '/glance/%s' % expected_image_id
+        image_swift = StringIO.StringIO(expected_swift_contents)
+
+        # Temporarily set Swift MAX_SWIFT_OBJECT_SIZE to 1KB and add our image,
+        # explicitly setting the image_length to 0
+        orig_max_size = glance.store.swift.DEFAULT_LARGE_OBJECT_SIZE
+        orig_temp_size = glance.store.swift.DEFAULT_LARGE_OBJECT_CHUNK_SIZE
+        global MAX_SWIFT_OBJECT_SIZE
+        orig_max_swift_object_size = MAX_SWIFT_OBJECT_SIZE
+        try:
+            MAX_SWIFT_OBJECT_SIZE = 1024
+            glance.store.swift.DEFAULT_LARGE_OBJECT_SIZE = 1024
+            glance.store.swift.DEFAULT_LARGE_OBJECT_CHUNK_SIZE = 1024
+            self.store = Store(options)
+            location, size, checksum = self.store.add(expected_image_id,
+                                                      image_swift, 0)
+        finally:
+            swift.DEFAULT_LARGE_OBJECT_CHUNK_SIZE = orig_temp_size
+            swift.DEFAULT_LARGE_OBJECT_SIZE = orig_max_size
+            MAX_SWIFT_OBJECT_SIZE = orig_max_swift_object_size
 
         self.assertEquals(expected_location, location)
         self.assertEquals(expected_swift_size, size)
@@ -425,7 +468,7 @@ class TestStore(unittest.TestCase):
         image_swift = StringIO.StringIO("nevergonnamakeit")
         self.assertRaises(exception.Duplicate,
                           self.store.add,
-                          2, image_swift, 0)
+                          FAKE_UUID, image_swift, 0)
 
     def _option_required(self, key):
         options = SWIFT_OPTIONS.copy()
@@ -460,13 +503,11 @@ class TestStore(unittest.TestCase):
         """
         Test we can delete an existing image in the swift store
         """
-        loc = get_location_from_uri("swift://user:key@authurl/glance/2")
-
+        uri = "swift://user:key@authurl/glance/%s" % FAKE_UUID
+        loc = get_location_from_uri(uri)
         self.store.delete(loc)
 
-        self.assertRaises(exception.NotFound,
-                          self.store.get,
-                          loc)
+        self.assertRaises(exception.NotFound, self.store.get, loc)
 
     def test_delete_non_existing(self):
         """
@@ -474,6 +515,4 @@ class TestStore(unittest.TestCase):
         raises an error
         """
         loc = get_location_from_uri("swift://user:key@authurl/glance/noexist")
-        self.assertRaises(exception.NotFound,
-                          self.store.delete,
-                          loc)
+        self.assertRaises(exception.NotFound, self.store.delete, loc)
