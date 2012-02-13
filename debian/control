@@ -22,6 +22,7 @@ Build-Depends-Indep:
  python-swift,
  python-boto,
  python-kombu,
+ python-crypto,
  curl,
  pep8,
  python-tempita
@@ -48,6 +49,7 @@ Depends: ${python:Depends}, ${misc:Depends},
  python-kombu,
  python-xattr,
  python-httplib2,
+ python-crypto,
  python-tempita
 Provides: ${python:Provides}
 XB-Python-Version: ${python:Versions}
