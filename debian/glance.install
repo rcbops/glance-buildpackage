@@ -6,5 +6,5 @@ etc/glance-cache.conf etc/glance
 etc/glance-scrubber-paste.ini
 etc/glance-registry-paste.ini
 etc/glance-cache-paste.ini
-etc/glance-api-paste.init
+etc/glance-api-paste.ini
 
