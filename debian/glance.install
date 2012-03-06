@@ -3,8 +3,10 @@ etc/glance-scrubber.conf etc/glance
 etc/glance-api.conf etc/glance
 etc/glance-registry.conf etc/glance
 etc/glance-cache.conf etc/glance
-etc/glance-scrubber-paste.ini
-etc/glance-registry-paste.ini
-etc/glance-cache-paste.ini
-etc/glance-api-paste.ini
+etc/glance-scrubber-paste.ini etc/glance
+etc/glance-registry-paste.ini etc/glance
+etc/glance-cache-paste.ini etc/glance
+etc/glance-api-paste.ini etc/glance
+etc/policy.json etc/glance
+
 

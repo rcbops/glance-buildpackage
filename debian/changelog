@@ -1,3 +1,9 @@
+glance (2012.0+e3-rcb6) natty; urgency=low
+
+  * add policy.json and the paste.ini files
+
+ -- RCB Builder <rcb-deploy@lists.rackspace.com>  Tue, 06 Mar 2012 08:48:03 -0800
+
 glance (2012.0+e3-rcb5) natty; urgency=low
 
   * update to essex-e3 from https://github.com/openstack/glance.git,
