@@ -1,3 +1,9 @@
+glance (2011.3-final-rcb4.1) natty; urgency=low
+
+  * add support for chunking in glance -> swift for diablo-final
+
+ -- RCB Builder <rcb-deploy@lists.rackspace.com>  Fri, 23 Mar 2012 13:29:19 -0500
+
 glance (2011.3-final-rcb4) natty; urgency=low
 
   * add support for diablo stable format keystone service catalogs
